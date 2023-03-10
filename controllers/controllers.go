@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 func HashPassword(password string) string {
@@ -79,9 +81,28 @@ func Login() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err})
 			return
 		}
+		UserCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&founduser)
+		defer cancel()
+		if err := nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "login or password incorrect"})
+			return
+		}
+		PasswordIsValid, msg := VerifyPassword(*user.Password, *founduser.Password)
 
+		defer cancel()
+
+		if !PasswordIsValid{
+			c.JSON{http.StatusInternalServerError, gin.H{"error:" msg}}
+			fmt.Println(msg)
+			return
+		}
+		token, refreshToken, _ := generate.TokenGenerator(*founduser.Email, *founduser.First_Name, *founduser.Last_Name, founduser.User_ID)
+		defer cancel()
+
+		generate.UpdateAllTokens(token, refreshToken, founduser.User_ID)
+
+		c.JSON(http.StatusCreated, "Successfully signed in")
 	}
-
 }
 
 func ProductViewerAdmin() gin.HandlerFunc {
